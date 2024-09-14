@@ -1,0 +1,17 @@
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dev-multibranch-pipeline-demo-hpa
+  namespace: dev
+  labels:
+    env: dev
+    app: multibranch-pipeline-demo-ms
+    layer: frontend
+spec:
+  maxReplicas: 50
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    name: dev-multibranch-pipeline-demo-deployment
+  targetCPUUtilizationPercentage: 80  

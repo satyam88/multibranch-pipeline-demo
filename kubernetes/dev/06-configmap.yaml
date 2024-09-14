@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dev-multibranch-pipeline-demo-application-config
+  namespace: dev
+  labels:
+    env: dev
+    app: multibranch-pipeline-demo-ms
+    layer: frontend
+data:
+  application.properties: |-

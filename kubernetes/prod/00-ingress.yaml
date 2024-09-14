@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prod-multibranch-pipeline-demo-ingress
+  namespace: prod
+  labels:
+    env: prod
+    app: multibranch-pipeline-demo-ms
+    layer: frontend
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: prod-multibranch-pipeline-demo.catalysttechnologies.in/
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: prod-multibranch-pipeline-demo-service
+                port:
+                  number: 8080
