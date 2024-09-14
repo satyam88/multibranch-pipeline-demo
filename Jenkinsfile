@@ -6,8 +6,8 @@ pipeline {
         REGION = "ap-south-1"
         ECR_URL = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
         BRANCH_NAME = "${env.BRANCH_NAME}"
-        IMAGE_NAME = "satyam88/booking-ms:dev-booking-ms-v.1.${env.BUILD_NUMBER}"
-        ECR_IMAGE_NAME = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/booking-ms:dev-booking-ms-v.1.${env.BUILD_NUMBER}"
+        IMAGE_NAME = "satyam88/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+        ECR_IMAGE_NAME = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
     }
 
     options {
@@ -93,9 +93,9 @@ pipeline {
             }
             steps {
                 script {
-                    def devImage = "satyam88/booking-ms:dev-booking-ms-v.1.${env.BUILD_NUMBER}"
-                    def preprodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/booking-ms:preprod-booking-ms-v.1.${env.BUILD_NUMBER}"
-                    def prodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/booking-ms:prod-booking-ms-v.1.${env.BUILD_NUMBER}"
+                    def devImage = "satyam88/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+                    def preprodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:preprod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+                    def prodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:prod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
 
                     if (env.BRANCH_NAME == 'preprod') {
                         echo "Tagging and Pushing Docker Image for Preprod: ${preprodImage}"
@@ -118,7 +118,6 @@ pipeline {
             steps {
                 script {
                     echo "Deleting Local Docker Images: ${env.IMAGE_NAME} ${env.ECR_IMAGE_NAME}"
-                    // Ensure each image name is checked for null before attempting deletion
                     sh "docker rmi ${env.IMAGE_NAME} || true"
                     sh "docker rmi ${env.ECR_IMAGE_NAME} || true"
                     echo "Local Docker Images Deletion Completed"
@@ -134,7 +133,7 @@ pipeline {
                 script {
                     echo "Current Branch: ${env.BRANCH_NAME}"
                     def yamlFile = 'kubernetes/dev/05-deployment.yaml'
-                    sh "sed -i 's/<latest>/dev-booking-ms-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
+                    sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
                     kubernetesDeploy(configs: 'kubernetes/dev/*.yaml', kubeconfigId: 'k8s-credentials')
                 }
             }
@@ -148,7 +147,7 @@ pipeline {
                 script {
                     echo "Current Branch: ${env.BRANCH_NAME}"
                     def yamlFile = 'kubernetes/preprod/05-deployment.yaml'
-                    sh "sed -i 's/<latest>/preprod-booking-ms-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
+                    sh "sed -i 's/<latest>/preprod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
                     kubernetesDeploy(configs: 'kubernetes/preprod/*.yaml', kubeconfigId: 'k8s-credentials')
                 }
             }
@@ -162,7 +161,7 @@ pipeline {
                 script {
                     echo "Current Branch: ${env.BRANCH_NAME}"
                     def yamlFile = 'kubernetes/prod/05-deployment.yaml'
-                    sh "sed -i 's/<latest>/prod-booking-ms-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
+                    sh "sed -i 's/<latest>/prod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
                     kubernetesDeploy(configs: 'kubernetes/prod/*.yaml', kubeconfigId: 'k8s-credentials')
                 }
             }
