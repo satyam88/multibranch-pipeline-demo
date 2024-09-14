@@ -135,7 +135,7 @@ pipeline {
                     sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
 
                     withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
-                        sh "kubectl apply -f kubernetes/dev/*.yaml --kubeconfig $KUBECONFIG -n dev-namespace"
+                        sh "kubectl apply -f kubernetes/dev/*.yaml --kubeconfig $KUBECONFIG -n dev"
                     }
                     echo "Deployment to Dev Completed"
                 }
@@ -153,7 +153,7 @@ pipeline {
                     sh "sed -i 's/<latest>/preprod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
 
                     withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
-                        sh "kubectl apply -f kubernetes/preprod/*.yaml --kubeconfig $KUBECONFIG -n preprod-namespace"
+                        sh "kubectl apply -f kubernetes/preprod/*.yaml --kubeconfig $KUBECONFIG -n preprod"
                     }
                     echo "Deployment to Preprod Completed"
                 }
@@ -171,7 +171,7 @@ pipeline {
                     sh "sed -i 's/<latest>/prod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
 
                     withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
-                        sh "kubectl apply -f kubernetes/prod/*.yaml --kubeconfig $KUBECONFIG -n prod-namespace"
+                        sh "kubectl apply -f kubernetes/prod/*.yaml --kubeconfig $KUBECONFIG -n prod"
                     }
                     echo "Deployment to Prod Completed"
                 }
