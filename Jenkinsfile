@@ -16,7 +16,6 @@ pipeline {
 
     tools {
         maven 'maven_3.9.4'
-        // sonarqubeScanner 'sonarqube-scanner'
     }
 
     stages {
@@ -27,142 +26,112 @@ pipeline {
             stages {
                 stage('Code Compilation') {
                     steps {
-                        echo 'Code Compilation is In Progress!'
+                        echo 'Code Compilation in Progress'
                         sh 'mvn clean compile'
-                        echo 'Code Compilation is Completed Successfully!'
+                        echo 'Code Compilation Completed'
                     }
                 }
 
-                stage('Code QA Execution') {
+                stage('JUnit Test Execution') {
                     steps {
-                        echo 'JUnit Test Case Check in Progress!'
+                        echo 'Running JUnit Tests'
                         sh 'mvn clean test'
-                        echo 'JUnit Test Case Check Completed!'
+                        echo 'JUnit Tests Completed'
                     }
                 }
 
-                stage('Code Package') {
+                stage('Package Application') {
                     steps {
-                        echo 'Creating WAR Artifact'
+                        echo 'Packaging WAR Artifact'
                         sh 'mvn clean package'
-                        echo 'Artifact Creation Completed'
+                        echo 'WAR Artifact Created'
                     }
                 }
 
-                stage('Building & Tag Docker Image') {
+                stage('Build and Tag Docker Image') {
                     steps {
-                        echo "Starting Building Docker Image: ${env.IMAGE_NAME}"
+                        echo "Building Docker Image: ${env.IMAGE_NAME}"
                         sh "docker build -t ${env.IMAGE_NAME} ."
-                        echo 'Docker Image Build Completed'
+                        echo 'Docker Image Built Successfully'
                     }
                 }
 
-                stage('Docker Push to Docker Hub') {
+                stage('Push Docker Image to DockerHub') {
                     steps {
                         withCredentials([usernamePassword(credentialsId: 'DOCKER_HUB_CRED', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                             echo "Pushing Docker Image to DockerHub: ${env.IMAGE_NAME}"
                             sh "docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
                             sh "docker push ${env.IMAGE_NAME}"
-                            echo "Docker Image Push to DockerHub Completed"
+                            echo "DockerHub Push Completed"
                         }
                     }
                 }
 
-                stage('Docker Image Push to Amazon ECR') {
+                stage('Push Docker Image to Amazon ECR') {
                     steps {
                         echo "Tagging Docker Image for ECR: ${env.ECR_IMAGE_NAME}"
                         sh "docker tag ${env.IMAGE_NAME} ${env.ECR_IMAGE_NAME}"
-                        echo "Docker Image Tagging Completed"
+                        echo "Pushing Docker Image to ECR: ${env.ECR_IMAGE_NAME}"
 
                         withDockerRegistry([credentialsId: 'ecr:ap-south-1:ecr-credentials', url: "https://${ECR_URL}"]) {
-                            echo "Pushing Docker Image to ECR: ${env.ECR_IMAGE_NAME}"
                             sh "docker push ${env.ECR_IMAGE_NAME}"
-                            echo "Docker Image Push to ECR Completed"
                         }
+                        echo "Docker Image Push to ECR Completed"
                     }
                 }
             }
         }
 
-        stage('Tag Docker Image for Preprod and Prod') {
-            when {
-                anyOf {
-                    branch 'preprod'
-                    branch 'prod'
-                }
-            }
-            steps {
-                script {
-                    def devImage = "satyam88/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
-                    def preprodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:preprod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
-                    def prodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:prod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
-
-                    if (env.BRANCH_NAME == 'preprod') {
-                        echo "Tagging and Pushing Docker Image for Preprod: ${preprodImage}"
-                        sh "docker tag ${devImage} ${preprodImage}"
-                        withDockerRegistry([credentialsId: 'ecr:ap-south-1:ecr-credentials', url: "https://${ECR_URL}"]) {
-                            sh "docker push ${preprodImage}"
-                        }
-                    } else if (env.BRANCH_NAME == 'prod') {
-                        echo "Tagging and Pushing Docker Image for Prod: ${prodImage}"
-                        sh "docker tag ${devImage} ${prodImage}"
-                        withDockerRegistry([credentialsId: 'ecr:ap-south-1:ecr-credentials', url: "https://${ECR_URL}"]) {
-                            sh "docker push ${prodImage}"
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Delete Local Docker Images') {
-            steps {
-                script {
-                    echo "Deleting Local Docker Images: ${env.IMAGE_NAME} ${env.ECR_IMAGE_NAME}"
-                    sh "docker rmi ${env.IMAGE_NAME} || true"
-                    sh "docker rmi ${env.ECR_IMAGE_NAME} || true"
-                    echo "Local Docker Images Deletion Completed"
-                }
-            }
-        }
-
-        stage('Deploy app to dev env') {
+        stage('Deploy to Development Environment') {
             when {
                 branch 'dev'
             }
             steps {
                 script {
-                    echo "Current Branch: ${env.BRANCH_NAME}"
+                    echo "Deploying to Dev Environment"
                     def yamlFile = 'kubernetes/dev/05-deployment.yaml'
                     sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
-                    kubernetesDeploy(configs: 'kubernetes/dev/*.yaml', kubeconfigId: 'k8s-credentials')
+
+                    withCredentials([file(credentialsId: 'kubeconfig-dev', variable: 'KUBECONFIG')]) {
+                        sh "kubectl apply -f kubernetes/dev/*.yaml --kubeconfig $KUBECONFIG"
+                    }
+                    echo "Deployment to Dev Completed"
                 }
             }
         }
 
-        stage('Deploy app to preprod env') {
+        stage('Deploy to Preprod Environment') {
             when {
                 branch 'preprod'
             }
             steps {
                 script {
-                    echo "Current Branch: ${env.BRANCH_NAME}"
+                    echo "Deploying to Preprod Environment"
                     def yamlFile = 'kubernetes/preprod/05-deployment.yaml'
                     sh "sed -i 's/<latest>/preprod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
-                    kubernetesDeploy(configs: 'kubernetes/preprod/*.yaml', kubeconfigId: 'k8s-credentials')
+
+                    withCredentials([file(credentialsId: 'kubeconfig-preprod', variable: 'KUBECONFIG')]) {
+                        sh "kubectl apply -f kubernetes/preprod/*.yaml --kubeconfig $KUBECONFIG"
+                    }
+                    echo "Deployment to Preprod Completed"
                 }
             }
         }
 
-        stage('Deploy app to prod env') {
+        stage('Deploy to Production Environment') {
             when {
                 branch 'prod'
             }
             steps {
                 script {
-                    echo "Current Branch: ${env.BRANCH_NAME}"
+                    echo "Deploying to Prod Environment"
                     def yamlFile = 'kubernetes/prod/05-deployment.yaml'
                     sh "sed -i 's/<latest>/prod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
-                    kubernetesDeploy(configs: 'kubernetes/prod/*.yaml', kubeconfigId: 'k8s-credentials')
+
+                    withCredentials([file(credentialsId: 'kubeconfig-prod', variable: 'KUBECONFIG')]) {
+                        sh "kubectl apply -f kubernetes/prod/*.yaml --kubeconfig $KUBECONFIG"
+                    }
+                    echo "Deployment to Prod Completed"
                 }
             }
         }
