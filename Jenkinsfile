@@ -5,9 +5,9 @@ pipeline {
         AWS_ACCOUNT_ID = "533267238276"
         REGION = "ap-south-1"
         ECR_URL = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
-        BRANCH_NAME = "${env.BRANCH_NAME}"
         IMAGE_NAME = "satyam88/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
         ECR_IMAGE_NAME = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+        KUBECONFIG_ID = 'kubeconfig-aws-aks-k8s-cluster'  // Updated Kubeconfig ID
     }
 
     options {
@@ -26,58 +26,100 @@ pipeline {
             stages {
                 stage('Code Compilation') {
                     steps {
-                        echo 'Code Compilation in Progress'
+                        echo 'Code Compilation is In Progress!'
                         sh 'mvn clean compile'
-                        echo 'Code Compilation Completed'
+                        echo 'Code Compilation is Completed Successfully!'
                     }
                 }
 
-                stage('JUnit Test Execution') {
+                stage('Code QA Execution') {
                     steps {
-                        echo 'Running JUnit Tests'
+                        echo 'JUnit Test Case Check in Progress!'
                         sh 'mvn clean test'
-                        echo 'JUnit Tests Completed'
+                        echo 'JUnit Test Case Check Completed!'
                     }
                 }
 
-                stage('Package Application') {
+                stage('Code Package') {
                     steps {
-                        echo 'Packaging WAR Artifact'
+                        echo 'Creating WAR Artifact'
                         sh 'mvn clean package'
-                        echo 'WAR Artifact Created'
+                        echo 'Artifact Creation Completed'
                     }
                 }
 
-                stage('Build and Tag Docker Image') {
+                stage('Building & Tag Docker Image') {
                     steps {
-                        echo "Building Docker Image: ${env.IMAGE_NAME}"
+                        echo "Starting Building Docker Image: ${env.IMAGE_NAME}"
                         sh "docker build -t ${env.IMAGE_NAME} ."
-                        echo 'Docker Image Built Successfully'
+                        echo 'Docker Image Build Completed'
                     }
                 }
 
-                stage('Push Docker Image to DockerHub') {
+                stage('Docker Push to Docker Hub') {
                     steps {
                         withCredentials([usernamePassword(credentialsId: 'DOCKER_HUB_CRED', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                             echo "Pushing Docker Image to DockerHub: ${env.IMAGE_NAME}"
                             sh "docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
                             sh "docker push ${env.IMAGE_NAME}"
-                            echo "DockerHub Push Completed"
+                            echo "Docker Image Push to DockerHub Completed"
                         }
                     }
                 }
 
-                stage('Push Docker Image to Amazon ECR') {
+                stage('Docker Image Push to Amazon ECR') {
                     steps {
                         echo "Tagging Docker Image for ECR: ${env.ECR_IMAGE_NAME}"
                         sh "docker tag ${env.IMAGE_NAME} ${env.ECR_IMAGE_NAME}"
-                        echo "Pushing Docker Image to ECR: ${env.ECR_IMAGE_NAME}"
+                        echo "Docker Image Tagging Completed"
 
                         withDockerRegistry([credentialsId: 'ecr:ap-south-1:ecr-credentials', url: "https://${ECR_URL}"]) {
+                            echo "Pushing Docker Image to ECR: ${env.ECR_IMAGE_NAME}"
                             sh "docker push ${env.ECR_IMAGE_NAME}"
+                            echo "Docker Image Push to ECR Completed"
                         }
-                        echo "Docker Image Push to ECR Completed"
                     }
+                }
+            }
+        }
+
+        stage('Tag Docker Image for Preprod and Prod') {
+            when {
+                anyOf {
+                    branch 'preprod'
+                    branch 'prod'
+                }
+            }
+            steps {
+                script {
+                    def devImage = "satyam88/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+                    def preprodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:preprod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+                    def prodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:prod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+
+                    if (env.BRANCH_NAME == 'preprod') {
+                        echo "Tagging and Pushing Docker Image for Preprod: ${preprodImage}"
+                        sh "docker tag ${devImage} ${preprodImage}"
+                        withDockerRegistry([credentialsId: 'ecr:ap-south-1:ecr-credentials', url: "https://${ECR_URL}"]) {
+                            sh "docker push ${preprodImage}"
+                        }
+                    } else if (env.BRANCH_NAME == 'prod') {
+                        echo "Tagging and Pushing Docker Image for Prod: ${prodImage}"
+                        sh "docker tag ${devImage} ${prodImage}"
+                        withDockerRegistry([credentialsId: 'ecr:ap-south-1:ecr-credentials', url: "https://${ECR_URL}"]) {
+                            sh "docker push ${prodImage}"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Delete Local Docker Images') {
+            steps {
+                script {
+                    echo "Deleting Local Docker Images: ${env.IMAGE_NAME} ${env.ECR_IMAGE_NAME}"
+                    sh "docker rmi ${env.IMAGE_NAME} || true"
+                    sh "docker rmi ${env.ECR_IMAGE_NAME} || true"
+                    echo "Local Docker Images Deletion Completed"
                 }
             }
         }
@@ -92,8 +134,8 @@ pipeline {
                     def yamlFile = 'kubernetes/dev/05-deployment.yaml'
                     sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
 
-                    withCredentials([file(credentialsId: 'kubeconfig-dev', variable: 'KUBECONFIG')]) {
-                        sh "kubectl apply -f kubernetes/dev/*.yaml --kubeconfig $KUBECONFIG"
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
+                        sh "kubectl apply -f kubernetes/dev/*.yaml --kubeconfig $KUBECONFIG -n dev-namespace"
                     }
                     echo "Deployment to Dev Completed"
                 }
@@ -110,8 +152,8 @@ pipeline {
                     def yamlFile = 'kubernetes/preprod/05-deployment.yaml'
                     sh "sed -i 's/<latest>/preprod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
 
-                    withCredentials([file(credentialsId: 'kubeconfig-preprod', variable: 'KUBECONFIG')]) {
-                        sh "kubectl apply -f kubernetes/preprod/*.yaml --kubeconfig $KUBECONFIG"
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
+                        sh "kubectl apply -f kubernetes/preprod/*.yaml --kubeconfig $KUBECONFIG -n preprod-namespace"
                     }
                     echo "Deployment to Preprod Completed"
                 }
@@ -128,8 +170,8 @@ pipeline {
                     def yamlFile = 'kubernetes/prod/05-deployment.yaml'
                     sh "sed -i 's/<latest>/prod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
 
-                    withCredentials([file(credentialsId: 'kubeconfig-prod', variable: 'KUBECONFIG')]) {
-                        sh "kubectl apply -f kubernetes/prod/*.yaml --kubeconfig $KUBECONFIG"
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
+                        sh "kubectl apply -f kubernetes/prod/*.yaml --kubeconfig $KUBECONFIG -n prod-namespace"
                     }
                     echo "Deployment to Prod Completed"
                 }
