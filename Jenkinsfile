@@ -134,7 +134,7 @@ pipeline {
                     def yamlFile = 'kubernetes/dev/05-deployment.yaml'
                     sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
 
-                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'config')]) {
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
                         sh "kubectl apply -f kubernetes/dev/*.yaml --kubeconfig $KUBECONFIG -n dev"
                     }
                     echo "Deployment to Dev Completed"
