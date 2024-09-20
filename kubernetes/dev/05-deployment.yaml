@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: multibranch-pipeline-demo-ms
-          image: 559220132560.dkr.ecr.ap-south-1.amazonaws.com/multibranch-pipeline-demo-ms:latest
+          image: 533267238276.dkr.ecr.ap-south-1.amazonaws.com/multibranch-pipeline-demo:<latest>
           resources:
             requests:
               memory: 50Mi

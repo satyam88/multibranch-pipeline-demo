@@ -11,7 +11,7 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-    - host: dev-multibranch-pipeline-demo.catalysttechnologies.in/
+    - host: dev-multibranch-pipeline-demo.catalysttechnologies.in  # Removed trailing slash
       http:
         paths:
           - pathType: Prefix
