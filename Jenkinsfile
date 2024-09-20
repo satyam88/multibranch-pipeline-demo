@@ -6,8 +6,8 @@ pipeline {
         REGION = "ap-south-1"
         ECR_URL = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
         IMAGE_NAME = "satyam88/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
-        ECR_IMAGE_NAME = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
-        KUBECONFIG_ID = 'kubeconfig-aws-aks-k8s-cluster'  // Updated Kubeconfig ID
+        ECR_IMAGE_NAME = "${ECR_URL}/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+        KUBECONFIG_ID = 'kubeconfig-aws-aks-k8s-cluster'
     }
 
     options {
@@ -93,8 +93,8 @@ pipeline {
             steps {
                 script {
                     def devImage = "satyam88/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
-                    def preprodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:preprod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
-                    def prodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/multibranch-pipeline-demo:prod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+                    def preprodImage = "${ECR_URL}/multibranch-pipeline-demo:preprod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+                    def prodImage = "${ECR_URL}/multibranch-pipeline-demo:prod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
 
                     if (env.BRANCH_NAME == 'preprod') {
                         echo "Tagging and Pushing Docker Image for Preprod: ${preprodImage}"
@@ -162,15 +162,24 @@ pipeline {
             steps {
                 script {
                     echo "Deploying to Preprod Environment"
-                    def yamlFile = 'kubernetes/preprod/05-deployment.yaml'
-                    sh "sed -i 's/<latest>/preprod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
+                    def yamlFiles = ['00-ingress.yaml', '02-service.yaml', '03-service-account.yaml', '05-deployment.yaml', '06-configmap.yaml', '09.hpa.yaml']
+                    def yamlDir = 'kubernetes/preprod/'
+                    sh "sed -i 's/<latest>/preprod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlDir}05-deployment.yaml"
 
                     withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
                                      [$class: 'AmazonWebServicesCredentialsBinding',
                                       credentialsId: 'aws-credentials',
                                       accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                                       secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
-                        sh "kubectl apply -f kubernetes/preprod/*.yaml --kubeconfig=\$KUBECONFIG -n preprod"
+                        yamlFiles.each { yamlFile ->
+                            sh """
+                                aws configure set aws_access_key_id \$AWS_ACCESS_KEY_ID
+                                aws configure set aws_secret_access_key \$AWS_SECRET_ACCESS_KEY
+                                aws configure set region ${REGION}
+
+                                kubectl apply -f ${yamlDir}${yamlFile} --kubeconfig=\$KUBECONFIG -n preprod --validate=false
+                            """
+                        }
                     }
                     echo "Deployment to Preprod Completed"
                 }
@@ -184,15 +193,24 @@ pipeline {
             steps {
                 script {
                     echo "Deploying to Prod Environment"
-                    def yamlFile = 'kubernetes/prod/05-deployment.yaml'
-                    sh "sed -i 's/<latest>/prod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
+                    def yamlFiles = ['00-ingress.yaml', '02-service.yaml', '03-service-account.yaml', '05-deployment.yaml', '06-configmap.yaml', '09.hpa.yaml']
+                    def yamlDir = 'kubernetes/prod/'
+                    sh "sed -i 's/<latest>/prod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlDir}05-deployment.yaml"
 
                     withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
                                      [$class: 'AmazonWebServicesCredentialsBinding',
                                       credentialsId: 'aws-credentials',
                                       accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                                       secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
-                        sh "kubectl apply -f kubernetes/prod/*.yaml --kubeconfig=\$KUBECONFIG -n prod"
+                        yamlFiles.each { yamlFile ->
+                            sh """
+                                aws configure set aws_access_key_id \$AWS_ACCESS_KEY_ID
+                                aws configure set aws_secret_access_key \$AWS_SECRET_ACCESS_KEY
+                                aws configure set region ${REGION}
+
+                                kubectl apply -f ${yamlDir}${yamlFile} --kubeconfig=\$KUBECONFIG -n prod --validate=false
+                            """
+                        }
                     }
                     echo "Deployment to Prod Completed"
                 }
