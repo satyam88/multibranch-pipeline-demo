@@ -9,6 +9,9 @@ RUN apt-get update && \
 RUN update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java && \
     update-alternatives --set javac /usr/lib/jvm/java-17-openjdk-amd64/bin/javac
 
+# Create the user if it does not exist
+RUN useradd -m multibranch-pipeline-demo
+
 # Copy the JAR file into the Tomcat webapps directory
 COPY ./target/multibranch-pipeline-demo*.jar /usr/local/tomcat/webapps
 

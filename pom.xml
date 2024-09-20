@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.example</groupId>
 	<artifactId>multibranch-pipeline-demo</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>v1.1</version>
 	<name>multibranch-pipeline-demo</name>
 	<description>Demo project for Spring Boot</description>
 	<url/>
