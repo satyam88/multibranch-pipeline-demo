@@ -131,11 +131,16 @@ pipeline {
             steps {
                 script {
                     echo "Deploying to Dev Environment"
-                    def yamlFile = 'kubernetes/dev/05-deployment.yaml'
-                    sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
+                    def yamlFiles = ['00-ingress.yaml', '02-service.yaml', '03-service-account.yaml', '05-deployment.yaml', '06-configmap.yaml', '09.hpa.yaml']
+                    def yamlDir = 'kubernetes/dev/'
+                    sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlDir}05-deployment.yaml"
 
                     withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
-                        sh "kubectl apply -f kubernetes/dev/*.yaml --kubeconfig $KUBECONFIG -n dev"
+                        yamlFiles.each { yamlFile ->
+                            sh """
+                                kubectl apply -f ${yamlDir}${yamlFile} --kubeconfig=\$KUBECONFIG -n dev
+                            """
+                        }
                     }
                     echo "Deployment to Dev Completed"
                 }
