@@ -135,9 +135,17 @@ pipeline {
                     def yamlDir = 'kubernetes/dev/'
                     sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlDir}05-deployment.yaml"
 
-                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
+                                     [$class: 'AmazonWebServicesCredentialsBinding',
+                                      credentialsId: 'aws-credentials',
+                                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
                         yamlFiles.each { yamlFile ->
                             sh """
+                                aws configure set aws_access_key_id \$AWS_ACCESS_KEY_ID
+                                aws configure set aws_secret_access_key \$AWS_SECRET_ACCESS_KEY
+                                aws configure set region ${REGION}
+
                                 kubectl apply -f ${yamlDir}${yamlFile} --kubeconfig=\$KUBECONFIG -n dev
                             """
                         }
@@ -157,8 +165,12 @@ pipeline {
                     def yamlFile = 'kubernetes/preprod/05-deployment.yaml'
                     sh "sed -i 's/<latest>/preprod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
 
-                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
-                        sh "kubectl apply -f kubernetes/preprod/*.yaml --kubeconfig $KUBECONFIG -n preprod"
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
+                                     [$class: 'AmazonWebServicesCredentialsBinding',
+                                      credentialsId: 'aws-credentials',
+                                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                        sh "kubectl apply -f kubernetes/preprod/*.yaml --kubeconfig=\$KUBECONFIG -n preprod"
                     }
                     echo "Deployment to Preprod Completed"
                 }
@@ -175,8 +187,12 @@ pipeline {
                     def yamlFile = 'kubernetes/prod/05-deployment.yaml'
                     sh "sed -i 's/<latest>/prod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
 
-                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
-                        sh "kubectl apply -f kubernetes/prod/*.yaml --kubeconfig $KUBECONFIG -n prod"
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
+                                     [$class: 'AmazonWebServicesCredentialsBinding',
+                                      credentialsId: 'aws-credentials',
+                                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                        sh "kubectl apply -f kubernetes/prod/*.yaml --kubeconfig=\$KUBECONFIG -n prod"
                     }
                     echo "Deployment to Prod Completed"
                 }
