@@ -3,7 +3,7 @@ FROM tomcat:9.0.52-jre11-openjdk-slim
 # Install Java 17
 RUN apt-get update && \
     apt-get install -y openjdk-17-jdk && \
-    apt-get clean;
+    apt-get clean
 
 # Set Java 17 as the default Java version
 RUN update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java && \
@@ -16,7 +16,7 @@ COPY ./target/multibranch-pipeline-demo*.jar /usr/local/tomcat/webapps
 EXPOSE 8080
 
 # Set the user
-USER easymytrip
+USER multibranch-pipeline-demo
 
 # Set the working directory
 WORKDIR /usr/local/tomcat/webapps
