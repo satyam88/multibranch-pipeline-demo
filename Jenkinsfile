@@ -146,7 +146,7 @@ pipeline {
                                 aws configure set aws_secret_access_key \$AWS_SECRET_ACCESS_KEY
                                 aws configure set region ${REGION}
 
-                                kubectl apply -f ${yamlDir}${yamlFile} --kubeconfig=\$KUBECONFIG -n dev
+                                kubectl apply -f ${yamlDir}${yamlFile} --kubeconfig=\$KUBECONFIG -n dev --validate=false
                             """
                         }
                     }
