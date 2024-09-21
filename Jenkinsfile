@@ -133,6 +133,7 @@ pipeline {
                     echo "Deploying to Dev Environment"
                     def yamlFiles = ['00-ingress.yaml', '02-service.yaml', '03-service-account.yaml', '05-deployment.yaml', '06-configmap.yaml', '09.hpa.yaml']
                     def yamlDir = 'kubernetes/dev/'
+                    // Replace <latest> in dev environment only
                     sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlDir}05-deployment.yaml"
 
                     withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
@@ -164,7 +165,8 @@ pipeline {
                     echo "Deploying to Preprod Environment"
                     def yamlFiles = ['00-ingress.yaml', '02-service.yaml', '03-service-account.yaml', '05-deployment.yaml', '06-configmap.yaml', '09.hpa.yaml']
                     def yamlDir = 'kubernetes/preprod/'
-                    sh "sed -i 's/<latest>/preprod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlDir}05-deployment.yaml"
+
+                    // No sed command for preprod, manual update will be applied
 
                     withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
                                      [$class: 'AmazonWebServicesCredentialsBinding',
@@ -195,7 +197,8 @@ pipeline {
                     echo "Deploying to Prod Environment"
                     def yamlFiles = ['00-ingress.yaml', '02-service.yaml', '03-service-account.yaml', '05-deployment.yaml', '06-configmap.yaml', '09.hpa.yaml']
                     def yamlDir = 'kubernetes/prod/'
-                    sh "sed -i 's/<latest>/prod-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlDir}05-deployment.yaml"
+
+                    // No sed command for prod, manual update will be applied
 
                     withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
                                      [$class: 'AmazonWebServicesCredentialsBinding',
