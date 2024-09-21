@@ -5,9 +5,9 @@ pipeline {
         AWS_ACCOUNT_ID = "533267238276"
         REGION = "ap-south-1"
         ECR_URL = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
-        BRANCH_NAME = "${env.BRANCH_NAME}"
-        IMAGE_NAME = "satyam88/booking-ms:dev-booking-ms-v.1.${env.BUILD_NUMBER}"
-        ECR_IMAGE_NAME = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/booking-ms:dev-booking-ms-v.1.${env.BUILD_NUMBER}"
+        IMAGE_NAME = "satyam88/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+        ECR_IMAGE_NAME = "${ECR_URL}/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+        KUBECONFIG_ID = 'kubeconfig-aws-aks-k8s-cluster'
     }
 
     options {
@@ -16,7 +16,6 @@ pipeline {
 
     tools {
         maven 'maven_3.9.4'
-        // sonarqubeScanner 'sonarqube-scanner'
     }
 
     stages {
@@ -93,9 +92,9 @@ pipeline {
             }
             steps {
                 script {
-                    def devImage = "satyam88/booking-ms:dev-booking-ms-v.1.${env.BUILD_NUMBER}"
-                    def preprodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/booking-ms:preprod-booking-ms-v.1.${env.BUILD_NUMBER}"
-                    def prodImage = "${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/booking-ms:prod-booking-ms-v.1.${env.BUILD_NUMBER}"
+                    def devImage = "satyam88/multibranch-pipeline-demo:dev-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+                    def preprodImage = "${ECR_URL}/multibranch-pipeline-demo:preprod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
+                    def prodImage = "${ECR_URL}/multibranch-pipeline-demo:prod-multibranch-pipeline-demo-v.1.${env.BUILD_NUMBER}"
 
                     if (env.BRANCH_NAME == 'preprod') {
                         echo "Tagging and Pushing Docker Image for Preprod: ${preprodImage}"
@@ -118,7 +117,6 @@ pipeline {
             steps {
                 script {
                     echo "Deleting Local Docker Images: ${env.IMAGE_NAME} ${env.ECR_IMAGE_NAME}"
-                    // Ensure each image name is checked for null before attempting deletion
                     sh "docker rmi ${env.IMAGE_NAME} || true"
                     sh "docker rmi ${env.ECR_IMAGE_NAME} || true"
                     echo "Local Docker Images Deletion Completed"
@@ -126,44 +124,98 @@ pipeline {
             }
         }
 
-        stage('Deploy app to dev env') {
+        stage('Deploy to Development Environment') {
             when {
                 branch 'dev'
             }
             steps {
                 script {
-                    echo "Current Branch: ${env.BRANCH_NAME}"
-                    def yamlFile = 'kubernetes/dev/05-deployment.yaml'
-                    sh "sed -i 's/<latest>/dev-booking-ms-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
-                    kubernetesDeploy(configs: 'kubernetes/dev/*.yaml', kubeconfigId: 'k8s-credentials')
+                    echo "Deploying to Dev Environment"
+                    def yamlFiles = ['00-ingress.yaml', '02-service.yaml', '03-service-account.yaml', '05-deployment.yaml', '06-configmap.yaml', '09.hpa.yaml']
+                    def yamlDir = 'kubernetes/dev/'
+                    // Replace <latest> in dev environment only
+                    sh "sed -i 's/<latest>/dev-multibranch-pipeline-demo-v.1.${BUILD_NUMBER}/g' ${yamlDir}05-deployment.yaml"
+
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
+                                     [$class: 'AmazonWebServicesCredentialsBinding',
+                                      credentialsId: 'aws-credentials',
+                                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                        yamlFiles.each { yamlFile ->
+                            sh """
+                                aws configure set aws_access_key_id \$AWS_ACCESS_KEY_ID
+                                aws configure set aws_secret_access_key \$AWS_SECRET_ACCESS_KEY
+                                aws configure set region ${REGION}
+
+                                kubectl apply -f ${yamlDir}${yamlFile} --kubeconfig=\$KUBECONFIG -n dev --validate=false
+                            """
+                        }
+                    }
+                    echo "Deployment to Dev Completed"
                 }
             }
         }
 
-        stage('Deploy app to preprod env') {
+        stage('Deploy to Preprod Environment') {
             when {
                 branch 'preprod'
             }
             steps {
                 script {
-                    echo "Current Branch: ${env.BRANCH_NAME}"
-                    def yamlFile = 'kubernetes/preprod/05-deployment.yaml'
-                    sh "sed -i 's/<latest>/preprod-booking-ms-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
-                    kubernetesDeploy(configs: 'kubernetes/preprod/*.yaml', kubeconfigId: 'k8s-credentials')
+                    echo "Deploying to Preprod Environment"
+                    def yamlFiles = ['00-ingress.yaml', '02-service.yaml', '03-service-account.yaml', '05-deployment.yaml', '06-configmap.yaml', '09.hpa.yaml']
+                    def yamlDir = 'kubernetes/preprod/'
+
+                    // No sed command for preprod, manual update will be applied
+
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
+                                     [$class: 'AmazonWebServicesCredentialsBinding',
+                                      credentialsId: 'aws-credentials',
+                                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                        yamlFiles.each { yamlFile ->
+                            sh """
+                                aws configure set aws_access_key_id \$AWS_ACCESS_KEY_ID
+                                aws configure set aws_secret_access_key \$AWS_SECRET_ACCESS_KEY
+                                aws configure set region ${REGION}
+
+                                kubectl apply -f ${yamlDir}${yamlFile} --kubeconfig=\$KUBECONFIG -n preprod --validate=false
+                            """
+                        }
+                    }
+                    echo "Deployment to Preprod Completed"
                 }
             }
         }
 
-        stage('Deploy app to prod env') {
+        stage('Deploy to Production Environment') {
             when {
                 branch 'prod'
             }
             steps {
                 script {
-                    echo "Current Branch: ${env.BRANCH_NAME}"
-                    def yamlFile = 'kubernetes/prod/05-deployment.yaml'
-                    sh "sed -i 's/<latest>/prod-booking-ms-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
-                    kubernetesDeploy(configs: 'kubernetes/prod/*.yaml', kubeconfigId: 'k8s-credentials')
+                    echo "Deploying to Prod Environment"
+                    def yamlFiles = ['00-ingress.yaml', '02-service.yaml', '03-service-account.yaml', '05-deployment.yaml', '06-configmap.yaml', '09.hpa.yaml']
+                    def yamlDir = 'kubernetes/prod/'
+
+                    // No sed command for prod, manual update will be applied
+
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG'),
+                                     [$class: 'AmazonWebServicesCredentialsBinding',
+                                      credentialsId: 'aws-credentials',
+                                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                        yamlFiles.each { yamlFile ->
+                            sh """
+                                aws configure set aws_access_key_id \$AWS_ACCESS_KEY_ID
+                                aws configure set aws_secret_access_key \$AWS_SECRET_ACCESS_KEY
+                                aws configure set region ${REGION}
+
+                                kubectl apply -f ${yamlDir}${yamlFile} --kubeconfig=\$KUBECONFIG -n prod --validate=false
+                            """
+                        }
+                    }
+                    echo "Deployment to Prod Completed"
                 }
             }
         }
